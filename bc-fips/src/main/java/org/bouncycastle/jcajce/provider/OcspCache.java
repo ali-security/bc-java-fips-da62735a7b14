@@ -13,6 +13,7 @@ import java.security.cert.Extension;
 import java.security.cert.X509Certificate;
 import java.text.ParseException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,23 +79,14 @@ class OcspCache
                 {
                     SingleResponse resp = SingleResponse.getInstance(s.getObjectAt(i));
 
-                    if (certID.equals(resp.getCertID()))
+                    boolean matchFound = isCertIDFoundAndCurrent(basicResp, parameters.getValidDate(), certID);
+                    if (matchFound)
                     {
-                        ASN1GeneralizedTime nextUp = resp.getNextUpdate();
-                        try
-                        {
-                            if (nextUp != null && parameters.getValidDate().after(nextUp.getDate()))
-                            {
-                                responseMap.remove(certID);
-                                response = null;
-                            }
-                        }
-                        catch (ParseException e)
-                        {
-                            // this should never happen, but...
-                            responseMap.remove(certID);
-                            response = null;
-                        }
+                        return response;
+                    }
+                    else
+                    {
+                        responseMap.remove(certID);
                     }
                 }
                 if (response != null)
@@ -195,6 +187,10 @@ class OcspCache
                 if (markerRef != null)
                 {
                     responseMap = markerRef.get();
+                }
+
+                if (responseMap != null)
+                {
                     responseMap.put(certID, response);
                 }
                 else
@@ -216,7 +212,39 @@ class OcspCache
         catch (IOException e)
         {
             throw new CertPathValidatorException("configuration error: " + e.getMessage(),
-                     e, parameters.getCertPath(), parameters.getIndex());
+                e, parameters.getCertPath(), parameters.getIndex());
         }
+    }
+
+    private static boolean isCertIDFoundAndCurrent(BasicOCSPResponse basicResp, Date validDate, CertID certID)
+    {
+        ResponseData responseData = ResponseData.getInstance(basicResp.getTbsResponseData());
+        ASN1Sequence s = responseData.getResponses();
+
+        for (int i = 0; i != s.size(); i++)
+        {
+            SingleResponse resp = SingleResponse.getInstance(s.getObjectAt(i));
+
+            if (certID.equals(resp.getCertID()))
+            {
+                ASN1GeneralizedTime nextUp = resp.getNextUpdate();
+                try
+                {
+                    if (nextUp != null && validDate.after(nextUp.getDate()))
+                    {
+                        return false;
+                    }
+                }
+                catch (ParseException e)
+                {
+                    // this should never happen, but...
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
     }
 }

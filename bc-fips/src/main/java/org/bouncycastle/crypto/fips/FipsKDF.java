@@ -1,5 +1,6 @@
 package org.bouncycastle.crypto.fips;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
@@ -189,6 +190,7 @@ public final class FipsKDF
         // FSM_TRANS:5.ASKDF.0.0,"CONDITIONAL TEST","SP800-135 KDF GENERATE KAT","Invoke SP800-135 KDF Generate KAT self-test"
         tlsLegacyKAT();   // full KAT test - not just MD5
         tls1_1and2KAT();
+        tls1_3KAT();
         sshKAT();
         // FSM_TRANS:5.ASKDF.0.1,"SP800-135 KDF GENERATE KAT","CONDITIONAL TEST","SP800-135 KDF Generate KAT self-test successful completion"
         // FSM_TRANS:5.ASKDF.0.2,"SP800-135 KDF GENERATE KAT","SOFT ERROR","SP800-135 KDF Generate KAT self-test failed"
@@ -2826,6 +2828,45 @@ public final class FipsKDF
         if (!Arrays.areEqual(kat, Hex.decode("fd9224c363882243d0d949139981093693407e438a508b3c324fd163247e210f")))
         {
             FipsStatus.moveToErrorStatus(new FipsSelfTestFailedError("Exception on self test: TLS KAT", TLS1_1.getAlgorithm()));
+        }
+    }
+
+    private static void tls1_3KAT()
+    {
+        byte[] salt = new byte[32];
+        byte[] ikm = Hex.decode("E16869403C8451F78E671BCF2D22239F02D8FB8A322F459F0A6761EBE5ED2D2B7B5B66D23C559DB492");
+        byte[] message = Hex.decode("56F181EBDFD6A84EDD35C92ADC99EE5FC510AC2D44AE9D53C5B9089A768125FD0B2DCCAD80EC1BB38A");
+        byte[] label = Strings.toByteArray("tls13 c e traffic");
+
+        Digest sha256 = FipsSHS.createDigest(FipsSHS.Algorithm.SHA256);
+        byte[] hashedMessages = new byte[sha256.getDigestSize()];
+
+        sha256.update(message, 0, message.length);
+
+        sha256.doFinal(hashedMessages, 0);
+
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
+        bOut.write((byte)0);
+        bOut.write((byte)32);
+        bOut.write((byte)label.length);
+        bOut.write(label, 0, label.length);
+        bOut.write((byte)hashedMessages.length);
+        bOut.write(hashedMessages, 0, hashedMessages.length);
+        byte[] info = bOut.toByteArray();
+
+        HKDFKey key = HKDF_KEY_BUILDER.withPrf(AgreementKDFPRF.SHA256_HMAC)
+            .withSalt(salt)
+            .build(ikm);
+
+        KDFCalculator kdfCalculator = new AgreementOperatorFactory().createKDFCalculator(
+                    FipsKDF.HKDF.withPRF(key.getPRF()).using(key.getKey()).withIV(info));
+
+        byte[] kat = new byte[32];
+        kdfCalculator.generateBytes(kat);
+
+        if (!Arrays.areEqual(kat, Hex.decode("fd7f6f0b9079a81fdfa3293f79e2350c2f7c5d93cac1b5b208811c48a1d6dd02")))
+        {
+            FipsStatus.moveToErrorStatus(new FipsSelfTestFailedError("Exception on self test", HKDF.getAlgorithm()));
         }
     }
 

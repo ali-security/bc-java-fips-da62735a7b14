@@ -1,0 +1,92 @@
+name: seal-build
+
+# Builds bc-fips-2.1.0.jar from this repackaging of the bc-fips sources jar and runs its tests.
+# Upstream ships no CI; the build follows the README ("How to build": JDK 1.8/9/11/15 toolchains,
+# `mvn package`) and additionally recompiles the JNI native libraries from bc-fips/src/main/native
+# with the toolchain the published libraries were built with (Ubuntu 22.04, gcc 11.4.0).
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: "Space/comma separated test names (JUnit classes/methods or BcFipsSmokeTest checks); empty = full suite"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ubuntu:jammy-20240911.1
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+      MAVEN_OPTS: "-Xmx2g"
+    steps:
+      - name: Install native toolchain (Ubuntu snapshot 2024-11-15)
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates
+          printf '%s\n' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20241115T000000Z jammy main universe' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20241115T000000Z jammy-updates main universe' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20241115T000000Z jammy-security main universe' \
+            > /etc/apt/sources.list
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            gcc-11=11.4.0-1ubuntu1~22.04 cpp-11=11.4.0-1ubuntu1~22.04 libgcc-11-dev=11.4.0-1ubuntu1~22.04 \
+            gcc binutils=2.38-4ubuntu2.6 libc6-dev=2.35-0ubuntu3.8 \
+            nasm=2.15.05-1 cmake=3.22.1-1ubuntu1.22.04.2 make curl unzip git
+          gcc --version | head -1
+          ld -v
+          nasm -v
+          cmake --version | head -1
+
+      - name: Install JDKs (Zulu 17.0.7 for Maven; toolchains 8u432 / 9.0.7 / 11.0.25 / 15.0.10) and Maven 3.9.9
+        run: |
+          set -eux
+          mkdir -p /opt/jdks
+          for spec in \
+              "17:zulu17.42.19-ca-jdk17.0.7-linux_x64" \
+              "8:zulu8.82.0.21-ca-jdk8.0.432-linux_x64" \
+              "9:zulu9.0.7.1-ca-jdk9.0.7-linux_x64" \
+              "11:zulu11.76.21-ca-jdk11.0.25-linux_x64" \
+              "15:zulu15.46.17-ca-jdk15.0.10-linux_x64" ; do
+            v="${spec%%:*}"; name="${spec#*:}"
+            curl -fsSL --retry 3 -o "/tmp/${name}.tar.gz" "https://cdn.azul.com/zulu/bin/${name}.tar.gz"
+            mkdir -p "/opt/jdks/jdk${v}"
+            tar -xzf "/tmp/${name}.tar.gz" -C "/opt/jdks/jdk${v}" --strip-components=1
+            rm "/tmp/${name}.tar.gz"
+            "/opt/jdks/jdk${v}/bin/java" -version
+          done
+          curl -fsSL --retry 3 -o /tmp/maven.tar.gz https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+          tar -xzf /tmp/maven.tar.gz -C /opt
+          rm /tmp/maven.tar.gz
+          mkdir -p /opt/m2/repository
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<toolchains>'
+            for pair in "1.8:8" "9:9" "11:11" "15:15" "17:17"; do
+              ver="${pair%%:*}"; dir="${pair#*:}"
+              echo "  <toolchain><type>jdk</type><provides><version>${ver}</version><vendor>azul</vendor></provides><configuration><jdkHome>/opt/jdks/jdk${dir}</jdkHome></configuration></toolchain>"
+            done
+            echo '</toolchains>'
+          } > /opt/m2/toolchains.xml
+          cat /opt/m2/toolchains.xml
+          echo "JAVA_HOME=/opt/jdks/jdk17" >> "$GITHUB_ENV"
+          echo "/opt/jdks/jdk17/bin" >> "$GITHUB_PATH"
+          echo "/opt/apache-maven-3.9.9/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v4
+
+      - name: Build native libraries + bc-fips jar, run JUnit tests and the FIPS smoke harness
+        run: bash .github/seal/build-and-test.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/dist" "${{ inputs.test-filter }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bc-fips-jar
+          path: dist/bc-fips-2.1.0.jar
+          if-no-files-found: error

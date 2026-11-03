@@ -235,9 +235,7 @@ public class DumpInfo
                 JarEntry jarEntry = entries.nextElement();
 
                 // Skip directories, META-INF, and module-info.class meta-data
-                if (jarEntry.isDirectory()
-                        || (jarEntry.getName().startsWith("META-INF/") && jarEntry.getName().indexOf("versions") < 0)
-                        || jarEntry.getName().indexOf("module-info.class") > 0)
+                if (skipEntry(jarEntry))
                 {
                     continue;
                 }
@@ -284,6 +282,28 @@ public class DumpInfo
         {
             return new byte[32];
         }
+    }
+
+    private static boolean skipEntry(JarEntry jarEntry)
+    {
+        if (jarEntry.isDirectory() || jarEntry.getName().indexOf("module-info.class") > 0)
+        {
+            return true;
+        }
+
+        if (jarEntry.getName().startsWith("META-INF/"))
+        {
+            if (jarEntry.getName().contains("OSGI-INF/"))
+            {
+                return true;
+            }
+            if (jarEntry.getName().indexOf("versions/") < 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void runTests()

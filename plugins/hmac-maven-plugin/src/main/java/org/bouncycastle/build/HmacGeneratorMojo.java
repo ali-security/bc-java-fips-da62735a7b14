@@ -10,10 +10,10 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.TreeMap;
@@ -49,12 +49,35 @@ public class HmacGeneratorMojo extends AbstractMojo {
             }
 
             JarFile jar = new JarFile(tempFile);
-            JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jarFile));
+            JarOutputStream jarOutputStream = new JarOutputStream(Files.newOutputStream(jarFile.toPath()));
             processJar(jar, jarOutputStream);
             jarOutputStream.close();
         } catch (IOException e) {
             throw new MojoExecutionException("Exception generating HMAC", e);
         }
+    }
+
+    /* Taken from bc-fips/src/main/java/org/bouncycastle/crypto/fips/FipsStatus.java */
+    private static boolean skipEntry(JarEntry jarEntry)
+    {
+        if (jarEntry.isDirectory() || jarEntry.getName().indexOf("module-info.class") > 0)
+        {
+            return true;
+        }
+
+        if (jarEntry.getName().startsWith("META-INF/"))
+        {
+            if (jarEntry.getName().contains("OSGI-INF/"))
+            {
+                return true;
+            }
+            if (jarEntry.getName().indexOf("versions/") < 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /*
@@ -86,10 +109,7 @@ public class HmacGeneratorMojo extends AbstractMojo {
                 }
 
                 // Skip directories, META-INF, and module-info.class meta-data
-                if (jarEntry.isDirectory()
-                        || (jarEntry.getName().startsWith("META-INF/") && !jarEntry.getName().contains("versions"))
-                        || jarEntry.getName().indexOf("module-info.class") > 0)
-                {
+                if(skipEntry(jarEntry)) {
                     continue;
                 }
 

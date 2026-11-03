@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.bouncycastle.crypto.fips.FipsDRBG;
+import org.bouncycastle.crypto.fips.FipsStatus;
 import org.bouncycastle.math.ec.endo.ECEndomorphism;
 import org.bouncycastle.math.ec.endo.GLVEndomorphism;
 import org.bouncycastle.math.field.FiniteField;
@@ -854,6 +855,14 @@ public abstract class ECCurve
 
         private static FiniteField buildField(int m, int k1, int k2, int k3)
         {
+            if (FipsStatus.isReady())
+            {
+                if (m > Properties.asInteger("org.bouncycastle.ec.max_f2m_field_size", 1142))  // twice 571
+                {
+                    throw new IllegalArgumentException("field size out of range: " + m);
+                }
+            }
+
             if (k1 == 0)
             {
                 throw new IllegalArgumentException("k1 must be > 0");

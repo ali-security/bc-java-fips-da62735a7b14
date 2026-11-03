@@ -38,6 +38,14 @@
     <properties>
         <packages>org.bouncycastle.*</packages>
     </properties>
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
     <build>
         <plugins>
             <plugin>
@@ -53,8 +61,9 @@
                         <Extension-Name>org.bouncycastle.bcfips</Extension-Name>
                         <Application-Name>Bouncy Castle FIPS Provider</Application-Name>
                         <Export-Package>
-                            ${packages},
-                            !*.internal.*
+                            !*.internal,
+                            !*.internal.*,
+                            ${packages}
                         </Export-Package>
                         <Import-Package>
                             java.*;resolution:=optional;version=!,
@@ -65,6 +74,7 @@
                         <!--<Private-Package>
                             native.*,*.internal.*
                         </Private-Package>-->
+                        <_removeheaders>Bundle-Description,Bundle-License,Include-Resource</_removeheaders>
                     </instructions>
                 </configuration>
             </plugin>
@@ -90,6 +100,19 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jarsigner-plugin</artifactId>
                 <version>3.1.0</version>
+            </plugin>
+            <!-- JUnit tests under src/test/java run against target/classes on the JDK 11 toolchain -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                    <trimStackTrace>false</trimStackTrace>
+                    <jdkToolchain>
+                        <version>[11,12)</version>
+                    </jdkToolchain>
+                </configuration>
             </plugin>
         </plugins>
     </build>

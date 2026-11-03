@@ -4,7 +4,7 @@ import org.bouncycastle.util.Properties;
 
 /**
  * Entropy constants for SP 800-90B. Can be set using "org.bouncycastle.entropy.factors"
- * which takes 3 numbers in the format of "&lt;int&gt,&lt;int&gt;,&lt;float&gt;" being
+ * which takes 3 numbers in the format of "&lt;int&gt;,&lt;int&gt;,&lt;float&gt;" being
  * the values for Stuck C, Adaptive C, and H.
  */
 public class FipsEntropyConfig

@@ -24,7 +24,7 @@ class NativeEntropySource
         //
         size = (sizeInBits + 7) / 8;
 
-        if (!NativeLoader.hasNativeService(FipsNativeServices.DRBG) ||
+        if (!NativeLoader.hasNativeService(FipsNativeServices.DRBG) &&
                 !NativeLoader.hasNativeService(FipsNativeServices.NRBG))
         {
             throw new IllegalStateException("no hardware support for random");

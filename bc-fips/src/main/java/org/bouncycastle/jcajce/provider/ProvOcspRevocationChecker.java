@@ -278,7 +278,7 @@ class ProvOcspRevocationChecker
                                         {
                                             throw new CertPathValidatorException("OCSP response expired");
                                         }
-                                        if (certID == null || !certID.getHashAlgorithm().equals(resp.getCertID().getHashAlgorithm()))
+                                        if (certID == null || !isEqualAlgId(certID.getHashAlgorithm(), resp.getCertID().getHashAlgorithm()))
                                         {
                                             org.bouncycastle.asn1.x509.Certificate issuer = extractCert();
 
@@ -339,6 +339,40 @@ class ProvOcspRevocationChecker
         }
     }
 
+    private static boolean isEqualAlgId(AlgorithmIdentifier a, AlgorithmIdentifier b)
+    {
+        if (a == b || a.equals(b))
+        {
+            return true;
+        }
+
+        if (a.getAlgorithm().equals(b.getAlgorithm()))
+        {
+            ASN1Encodable aParam = a.getParameters();
+            ASN1Encodable bParam = b.getParameters();
+
+            if (aParam == bParam)
+            {
+                return true;
+            }
+
+            if (aParam == null)
+            {
+                return DERNull.INSTANCE.equals(bParam);
+            }
+            else
+            {
+                if (DERNull.INSTANCE.equals(aParam) && bParam == null)
+                {
+                    return true;
+                }
+
+                return aParam.equals(bParam);
+            }
+        }
+
+        return false;
+    }
     static URI getOcspResponderURI(X509Certificate cert)
     {
         byte[] extValue = cert.getExtensionValue(org.bouncycastle.asn1.x509.Extension.authorityInfoAccess.getId());

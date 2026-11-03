@@ -736,7 +736,11 @@ public final class BouncyCastleFipsProvider
 
                 for (Service service : serviceSet)
                 {
-                    bcServiceSet.add(getService(service.getType(), service.getAlgorithm()));
+                    Service serv = getService(service.getType(), service.getAlgorithm());
+                    if (serv != null)
+                    {
+                        bcServiceSet.add(serv);
+                    }
                 }
 
                 bcServiceSet = Collections.unmodifiableSet(bcServiceSet);

@@ -88,12 +88,49 @@ public class ASN1ObjectIdentifier
         }
     }
 
+    /**
+     * Implementation limit on the length of the contents octets for an Object Identifier.
+     * <p/>
+     * We adopt the same value used by OpenJDK. In theory there is no limit on the length of the contents, or
+     * the number of subidentifiers, or the length of individual subidentifiers. In practice, supporting
+     * arbitrary lengths can lead to issues, e.g. denial-of-service attacks when attempting to convert a
+     * parsed value to its (decimal) string form.
+     */
+    private static final int MAX_CONTENTS_LENGTH = 4096;
+    private static final int MAX_IDENTIFIER_LENGTH = MAX_CONTENTS_LENGTH * 4 + 1;
+
     private static final long LONG_LIMIT = (Long.MAX_VALUE >> 7) - 0x7f;
+
+    static void checkContentsLength(int contentsLength)
+    {
+        if (contentsLength > MAX_CONTENTS_LENGTH)
+        {
+            throw new IllegalArgumentException("exceeded OID contents length limit");
+        }
+    }
+
+    static void checkIdentifier(String identifier)
+    {
+        if (identifier == null)
+        {
+            throw new NullPointerException("'identifier' cannot be null");
+        }
+        if (identifier.length() > MAX_IDENTIFIER_LENGTH)
+        {
+            throw new IllegalArgumentException("exceeded OID contents length limit");
+        }
+        if (!isValidIdentifier(identifier))
+        {
+            throw new IllegalArgumentException("string " + identifier + " not a valid OID");
+        }
+    }
 
     ASN1ObjectIdentifier(
         byte[] bytes)
     {
-        StringBuffer objId = new StringBuffer();
+        checkContentsLength(bytes.length);
+
+        StringBuilder objId = new StringBuilder();
         long value = 0;
         BigInteger bigValue = null;
         boolean first = true;
@@ -175,14 +212,7 @@ public class ASN1ObjectIdentifier
     public ASN1ObjectIdentifier(
         String identifier)
     {
-        if (identifier == null)
-        {
-            throw new NullPointerException("'identifier' cannot be null");
-        }
-        if (!isValidIdentifier(identifier))
-        {
-            throw new IllegalArgumentException("string " + identifier + " not an OID");
-        }
+        checkIdentifier(identifier);
 
         this.identifier = identifier;
     }
